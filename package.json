@@ -1,0 +1,24 @@
+{
+	"name": "spaceship-mania-server",
+	"version": "1.0.0",
+	"private": true,
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"deploy": "yarn workspace functions serve",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"workspaces": [
+		"./*"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Collins1738/spaceship-mania-server.git"
+	},
+	"author": "Collins Chikeluba",
+	"license": "ISC",
+	"bugs": {
+		"url": "https://github.com/Collins1738/spaceship-mania-server/issues"
+	},
+	"homepage": "https://github.com/Collins1738/spaceship-mania-server#readme"
+}
