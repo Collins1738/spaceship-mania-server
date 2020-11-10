@@ -15,7 +15,6 @@ const addChallenge = async (req, res) => {
 		})
 		.catch((err) => res.status(500).json({ error: err.message }));
 
-	// console.log(challengeId, uid);
 	const userRef = database.collection("users").doc(uid);
 	await userRef
 		.update({
@@ -29,4 +28,21 @@ const addChallenge = async (req, res) => {
 		});
 };
 
-module.exports = { getChallengesMadeByUser, addChallenge };
+const initializeUser = (req, res) => {
+	const { userId, displayName } = req.body;
+	const doc = database.collection("users").doc(userId);
+	if (!doc.exists) {
+		database.collection("users").add({
+			challengesMade: [],
+			challengesPlayed: [],
+			displayName,
+			highscoreSinglePlayer,
+			numSinglePlayerGamesPlayed,
+		});
+		res.json({ message: "Successfully initialized user" });
+	} else {
+		res.json({ message: "User already exists" });
+	}
+};
+
+module.exports = { getChallengesMadeByUser, addChallenge, initializeUser };
