@@ -84,8 +84,8 @@ const getNumberCorrectPositions = async (req, res) => {
 	const score = gameWon ? triesLeft * 5 + 1 : 0;
 
 	if (gameOver) {
-		deleteGame(gameId);
-		updateHighscore(score, userId);
+		// deleteGame(gameId);
+		updateSinglePlayerHighscore(score, userId);
 	}
 
 	res.json({
