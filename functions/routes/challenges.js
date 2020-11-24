@@ -7,7 +7,14 @@ const getAllChallenges = async (req, res) => {
 		.get()
 		.then((data) => {
 			data.forEach((doc) => {
-				allChallenges.push({ challengeId: doc.id, ...doc.data() });
+				const { date, userId, name, highscores } = doc.data();
+				allChallenges.push({
+					challengeId: doc.id,
+					date: date.toDate().toString().slice(0, 15),
+					userId,
+					name,
+					highscore: highscores[0] || null,
+				});
 			});
 		})
 		.catch((err) => res.status(500).json({ error: err.message }));
@@ -39,20 +46,73 @@ const getChallenge = (req, res) => {
 					size,
 					tries,
 					userId,
+					date,
+					name,
 				} = doc.data();
 				const creator = await getDisplayName(userId);
+				const newHighscores = highscores.map((highscore) => {
+					return {
+						displayName: highscore.displayName,
+						score: highscore.score,
+						date: highscore.date.toDate().toString().slice(0, 15),
+					};
+				});
 				const challenge = {
 					challengeId,
-					highscores,
+					highscores: newHighscores,
 					positions,
 					size,
 					tries,
 					creator,
+					date: date.toDate().toString().slice(0, 15),
+					name,
 				};
 				res.json(challenge);
 			}
 		})
 		.catch((err) => res.status(500).json({ error: err.message }));
+};
+
+const addChallenge = async (req, res) => {
+	const {
+		size,
+		numShips,
+		tries,
+		positions,
+		userId,
+		challengeName,
+	} = req.body;
+	const date = admin.firestore.Timestamp.now();
+	const challengeId = await database
+		.collection("challenges")
+		.add({
+			size,
+			numShips,
+			tries,
+			positions,
+			userId,
+			date,
+			highscores: [],
+			name: challengeName,
+		})
+		.then((doc) => {
+			return doc.id;
+		})
+		.catch((err) => {
+			res.status(500).json({ message: err.message });
+		});
+
+	const userRef = database.collection("users").doc(userId);
+	await userRef
+		.update({
+			challengesMade: admin.firestore.FieldValue.arrayUnion({
+				challengeId,
+			}),
+		})
+		.then(() => res.json({ message: "Challenge added successfully" }))
+		.catch((err) => {
+			res.json({ error: err.message });
+		});
 };
 
 const updateHighscore = (req, res) => {
@@ -83,4 +143,5 @@ module.exports = {
 	getAllChallenges,
 	getChallenge,
 	updateHighscore,
+	addChallenge,
 };

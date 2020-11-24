@@ -44,6 +44,29 @@ const makeSinglePlayerGame = (req, res) => {
 		});
 };
 
+const getGameInfo = (req, res) => {
+	const { gameId } = req.body;
+	database
+		.collection("gameplay")
+		.doc(gameId)
+		.get()
+		.then((doc) => {
+			if (doc.exists) {
+				const {
+					numShips,
+					size,
+					triesLeft,
+					userId,
+					gameId,
+				} = doc.data();
+				res.json({ numShips, size, triesLeft, userId, gameId });
+			} else {
+				res.status(500).json({ message: "Game does not exist" });
+			}
+		})
+		.catch((err) => res.status(400).json({ message: err.message }));
+};
+
 const getNumberCorrectPositions = async (req, res) => {
 	const { gameId, answers } = req.body;
 	var triesLeft, numShips, userId;
@@ -171,4 +194,5 @@ module.exports = {
 	makeSinglePlayerGame,
 	getNumberCorrectPositions,
 	test,
+	getGameInfo,
 };
