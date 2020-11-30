@@ -1,4 +1,5 @@
 const { admin, database } = require("../utils/admin");
+const { getDisplayName } = require("./challenges");
 
 const makeSinglePlayerGame = (req, res) => {
 	const { size, numShips, userId } = req.body;
@@ -7,6 +8,10 @@ const makeSinglePlayerGame = (req, res) => {
 	let checkPositions = [];
 	var i = 0;
 	let position = null;
+	if (numShips > Math.pow(size, 2)) {
+		res.status(404).json({ message: "More ships than boards" });
+		return;
+	}
 	while (i < numShips) {
 		while (position == null || checkPositions.includes(checkPosition)) {
 			var x = Math.round(Math.random() * 10) % size;
@@ -23,7 +28,15 @@ const makeSinglePlayerGame = (req, res) => {
 	// add to gameplay
 	database
 		.collection("gameplay")
-		.add({ positions, size, numShips, triesLeft, userId })
+		.add({
+			positions,
+			size,
+			numShips,
+			triesLeft,
+			userId,
+			made: admin.firestore.Timestamp.now(),
+			mode: "SinglePlayer",
+		})
 		.then((doc) => {
 			res.json({ gameId: doc.id, size, numShips, triesLeft });
 		})
@@ -44,6 +57,52 @@ const makeSinglePlayerGame = (req, res) => {
 		});
 };
 
+const makeChallengeGame = (req, res) => {
+	const { challengeId, userId } = req.body;
+	console.log(challengeId, userId);
+	database
+		.collection("challenges")
+		.doc(challengeId)
+		.get()
+		.then((doc) => {
+			if (!doc.exists) {
+				res.status(400).json({ message: "Challenge doesn't exist" });
+				return;
+			} else {
+				const { size, numShips, positions, tries } = doc.data();
+				return { size, numShips, positions, tries };
+			}
+		})
+		.then(({ size, numShips, positions, tries }) => {
+			return database.collection("gameplay").add({
+				positions,
+				size,
+				numShips,
+				triesLeft: tries,
+				userId,
+				made: admin.firestore.Timestamp.now(),
+				mode: "Challenge",
+				challengeId: challengeId,
+			});
+		})
+		.then((doc) => {
+			res.json({ gameId: doc.id });
+		})
+		.catch((err) => {
+			console.log(err);
+			res.status(500).json({ message: err.message });
+		});
+
+	const doc = database.collection("users").doc(userId);
+	doc.update({
+		challengesPlayed: admin.firestore.FieldValue.arrayUnion({
+			challengeId,
+		}),
+	}).catch((err) => {
+		console.log(err.message);
+	});
+};
+
 const getGameInfo = (req, res) => {
 	const { gameId } = req.body;
 	database
@@ -52,13 +111,7 @@ const getGameInfo = (req, res) => {
 		.get()
 		.then((doc) => {
 			if (doc.exists) {
-				const {
-					numShips,
-					size,
-					triesLeft,
-					userId,
-					gameId,
-				} = doc.data();
+				const { numShips, size, triesLeft, userId } = doc.data();
 				res.json({ numShips, size, triesLeft, userId, gameId });
 			} else {
 				res.status(500).json({ message: "Game does not exist" });
@@ -70,7 +123,7 @@ const getGameInfo = (req, res) => {
 const getNumberCorrectPositions = async (req, res) => {
 	const { gameId, answers } = req.body;
 	var triesLeft, numShips, userId;
-	const correctPositions = await database
+	const { correctPositions, mode, challengeId } = await database
 		.collection("gameplay")
 		.doc(gameId)
 		.get()
@@ -78,13 +131,13 @@ const getNumberCorrectPositions = async (req, res) => {
 			if (!doc.exists) {
 				res.status(404).json({ error: "Game does not exist" });
 			} else {
-				const { positions } = doc.data();
+				const { positions, mode, challengeId } = doc.data();
 				triesLeft = doc.data().triesLeft;
 				numShips = doc.data().numShips;
 				userId = doc.data().userId;
 				triesLeft -= 1;
 				doc.ref.update({ triesLeft });
-				return positions;
+				return { correctPositions: positions, mode, challengeId };
 			}
 		});
 
@@ -108,7 +161,13 @@ const getNumberCorrectPositions = async (req, res) => {
 
 	if (gameOver) {
 		// deleteGame(gameId);
-		updateSinglePlayerHighscore(score, userId);
+
+		if (mode == "SinglePlayer") {
+			updateSinglePlayerHighscore(score, userId);
+		} else if (mode == "Challenge") {
+			updateChallengeHighscore(score, userId, challengeId);
+			console.log("updating gp");
+		}
 	}
 
 	res.json({
@@ -152,7 +211,7 @@ const test = (req, res) => {
 
 const updateSinglePlayerHighscore = async (score, userId) => {
 	let date = admin.firestore.Timestamp.now();
-	const displayName = await database
+	database
 		.collection("users")
 		.doc(userId)
 		.get()
@@ -163,7 +222,7 @@ const updateSinglePlayerHighscore = async (score, userId) => {
 			return doc.data().displayName;
 		})
 		.catch((err) => res.status(500).json({ error: err.message }));
-	const highscoreToAdd = { score, displayName, date };
+	const highscoreToAdd = { score, userId, date };
 	database
 		.collection("singlePlayer")
 		.doc("highscores")
@@ -190,8 +249,38 @@ const updateSinglePlayerHighscore = async (score, userId) => {
 	// TODO update Leaderboard
 };
 
+const updateChallengeHighscore = async (score, userId, challengeId) => {
+	let date = admin.firestore.Timestamp.now();
+	const highscoreToAdd = { score, userId, date };
+	database
+		.collection("challenges")
+		.doc(challengeId)
+		.get()
+		.then((doc) => {
+			var { highscores } = doc.data();
+			const amount = 5;
+			if (highscores.length < amount) {
+				highscores.push(highscoreToAdd);
+				highscores.sort((a, b) => {
+					return b.score - a.score;
+				});
+				doc.ref.update({ highscores });
+			} else {
+				if (highscores[amount - 1].score < highscoreToAdd.score) {
+					highscores.push(highscoreToAdd);
+					highscores.sort((a, b) => {
+						return b.score - a.score;
+					});
+					highscores.pop();
+					doc.ref.update({ highscores });
+				}
+			}
+		});
+};
+
 module.exports = {
 	makeSinglePlayerGame,
+	makeChallengeGame,
 	getNumberCorrectPositions,
 	test,
 	getGameInfo,

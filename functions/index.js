@@ -9,10 +9,11 @@ const {
 	getAllChallenges,
 	addChallenge,
 } = require("./routes/challenges");
-const { initializeUser } = require("./routes/user");
+const { initializeUser, changeName, getUserInfo } = require("./routes/user");
 const { getSinglePlayerLeaderboard } = require("./routes/singlePlayer");
 const {
 	makeSinglePlayerGame,
+	makeChallengeGame,
 	getNumberCorrectPositions,
 	test,
 	getGameInfo,
@@ -33,9 +34,12 @@ app.post("/addChallenge", addChallenge);
 
 // User Routes
 app.post("/initializeUser", initializeUser);
+app.post("/changeName", changeName);
+app.post("/getUserInfo", getUserInfo);
 
 // Gameplay Routes
 app.post("/makeSinglePlayerGame", makeSinglePlayerGame);
+app.post("/makeChallengeGame", makeChallengeGame);
 app.post("/getGameInfo", getGameInfo);
 
 app.get("/getSinglePlayerLeaderboard", getSinglePlayerLeaderboard);

@@ -7,31 +7,49 @@ const getAllChallenges = async (req, res) => {
 		.get()
 		.then((data) => {
 			data.forEach((doc) => {
-				const { date, userId, name, highscores } = doc.data();
-				allChallenges.push({
-					challengeId: doc.id,
-					date: date.toDate().toString().slice(0, 15),
-					userId,
-					name,
-					highscore: highscores[0] || null,
-				});
+				allChallenges.push({ challengeId: doc.id, ...doc.data() });
 			});
 		})
 		.catch((err) => res.status(500).json({ error: err.message }));
 
-	var index = 0;
-	while (index < allChallenges.length) {
-		const { userId, ...rest } = allChallenges[index];
-		let creator = await getDisplayName(userId);
-		allChallenges[index] = { creator, ...rest };
-		index += 1;
-	}
+	allChallenges = allChallenges.map(async (challenge) => {
+		const { date, userId, name, highscores } = challenge;
+		const highscoreDisplayName = highscores[0]
+			? await getDisplayName(highscores[0].userId)
+			: null;
+		const highscore = highscores[0]
+			? {
+					date: highscores[0].date,
+					score: highscores[0].score,
+					displayName: highscoreDisplayName,
+			  }
+			: null;
+		const creator = await getDisplayName(userId);
+		return {
+			challengeId: challenge.challengeId,
+			date: date.toDate().toString().slice(0, 15),
+			creator,
+			name,
+			highscore,
+		};
+	});
+
+	allChallenges = await Promise.all(allChallenges);
 	res.json(allChallenges);
 };
 
-const getChallenge = (req, res) => {
+const getChallenge = async (req, res) => {
 	const { challengeId } = req.body;
-	database
+	const challenge = await getChallengeFunction(challengeId);
+	if (challenge.error) {
+		res.error({ error });
+	} else {
+		res.json(challenge);
+	}
+};
+
+const getChallengeFunction = async (challengeId) => {
+	return await database
 		.collection("challenges")
 		.doc(challengeId)
 		.get()
@@ -50,13 +68,21 @@ const getChallenge = (req, res) => {
 					name,
 				} = doc.data();
 				const creator = await getDisplayName(userId);
-				const newHighscores = highscores.map((highscore) => {
-					return {
-						displayName: highscore.displayName,
-						score: highscore.score,
-						date: highscore.date.toDate().toString().slice(0, 15),
-					};
-				});
+				const newHighscores = await Promise.all(
+					highscores.map(async (highscore) => {
+						const displayName = await getDisplayName(
+							highscore.userId
+						);
+						return {
+							displayName,
+							score: highscore.score,
+							date: highscore.date
+								.toDate()
+								.toString()
+								.slice(0, 15),
+						};
+					})
+				);
 				const challenge = {
 					challengeId,
 					highscores: newHighscores,
@@ -67,10 +93,12 @@ const getChallenge = (req, res) => {
 					date: date.toDate().toString().slice(0, 15),
 					name,
 				};
-				res.json(challenge);
+				return challenge;
 			}
 		})
-		.catch((err) => res.status(500).json({ error: err.message }));
+		.catch((err) => {
+			return { error: err.message };
+		});
 };
 
 const addChallenge = async (req, res) => {
@@ -115,12 +143,10 @@ const addChallenge = async (req, res) => {
 		});
 };
 
-const updateHighscore = (req, res) => {
-	const { challengeId, highscore } = req.body;
-	// TODO
-};
-
 const getDisplayName = async (userId) => {
+	if (!userId) {
+		userId = "Anonymous";
+	}
 	const displayName = await database
 		.collection("users")
 		.doc(userId)
@@ -142,6 +168,7 @@ const getDisplayName = async (userId) => {
 module.exports = {
 	getAllChallenges,
 	getChallenge,
-	updateHighscore,
 	addChallenge,
+	getDisplayName,
+	getChallengeFunction,
 };

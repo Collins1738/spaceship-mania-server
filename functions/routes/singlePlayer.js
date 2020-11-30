@@ -1,18 +1,26 @@
+const { user } = require("firebase-functions/lib/providers/auth");
 const { database } = require("../utils/admin");
+const { getDisplayName } = require("./challenges");
 
-const getSinglePlayerLeaderboard = (req, res) => {
+const getSinglePlayerLeaderboard = async (req, res) => {
 	database
 		.collection("singlePlayer")
 		.doc("highscores")
 		.get()
-		.then((doc) => {
-			highscores = doc.data().highscores.map((highscore) => {
+		.then(async (doc) => {
+			var highscores = doc.data().highscores.map((highscore) => {
 				return {
-					displayName: highscore.displayName,
+					userId: highscore.userId,
 					score: highscore.score,
 					date: highscore.date.toDate().toString().slice(0, 15),
 				};
 			});
+			highscores = highscores.map(async (highscore) => {
+				const { userId, score, date } = highscore;
+				const displayName = await getDisplayName(userId);
+				return { displayName, score, date };
+			});
+			highscores = await Promise.all(highscores);
 			res.json(highscores);
 		});
 };
