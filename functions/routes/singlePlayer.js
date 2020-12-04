@@ -1,4 +1,3 @@
-const { user } = require("firebase-functions/lib/providers/auth");
 const { database } = require("../utils/admin");
 const { getDisplayName } = require("./challenges");
 

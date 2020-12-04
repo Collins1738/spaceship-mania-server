@@ -17,6 +17,7 @@ const {
 	getNumberCorrectPositions,
 	test,
 	getGameInfo,
+	endGame,
 } = require("./routes/gameplay");
 
 app.get("/hi", (req, res) => {
@@ -41,6 +42,7 @@ app.post("/getUserInfo", getUserInfo);
 app.post("/makeSinglePlayerGame", makeSinglePlayerGame);
 app.post("/makeChallengeGame", makeChallengeGame);
 app.post("/getGameInfo", getGameInfo);
+app.post("/endGame", endGame);
 
 app.get("/getSinglePlayerLeaderboard", getSinglePlayerLeaderboard);
 app.post("/getNumberCorrectPositions", getNumberCorrectPositions);

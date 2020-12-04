@@ -45,16 +45,18 @@ const makeSinglePlayerGame = (req, res) => {
 		});
 
 	// increment users numSinglePlayerGamesPlayed
-	database
-		.collection("users")
-		.doc(userId)
-		.get()
-		.then((doc) => {
-			doc.ref.update({
-				numSinglePlayerGamesPlayed:
-					doc.data().numSinglePlayerGamesPlayed + 1,
+	if (userId) {
+		database
+			.collection("users")
+			.doc(userId)
+			.get()
+			.then((doc) => {
+				doc.ref.update({
+					numSinglePlayerGamesPlayed:
+						doc.data().numSinglePlayerGamesPlayed + 1,
+				});
 			});
-		});
+	}
 };
 
 const makeChallengeGame = (req, res) => {
@@ -160,8 +162,7 @@ const getNumberCorrectPositions = async (req, res) => {
 	const score = gameWon ? triesLeft * 5 + 1 : 0;
 
 	if (gameOver) {
-		// deleteGame(gameId);
-
+		deleteGame(gameId);
 		if (mode == "SinglePlayer") {
 			updateSinglePlayerHighscore(score, userId);
 		} else if (mode == "Challenge") {
@@ -174,6 +175,35 @@ const getNumberCorrectPositions = async (req, res) => {
 		triesLeft,
 		numCorrect: count,
 		numShips,
+		gameOver,
+		gameWon,
+		positions: gameOver ? correctPositions : null,
+		score,
+	});
+};
+
+const endGame = async (req, res) => {
+	const { gameId } = req.body;
+	const { correctPositions } = await database
+		.collection("gameplay")
+		.doc(gameId)
+		.get()
+		.then((doc) => {
+			if (!doc.exists) {
+				res.status(404).json({ error: "Game does not exist" });
+			} else {
+				const { positions } = doc.data();
+				return { correctPositions: positions };
+			}
+		});
+
+	const gameWon = false;
+	const gameOver = true;
+	const score = 0;
+
+	deleteGame(gameId);
+
+	res.json({
 		gameOver,
 		gameWon,
 		positions: gameOver ? correctPositions : null,
@@ -284,4 +314,5 @@ module.exports = {
 	getNumberCorrectPositions,
 	test,
 	getGameInfo,
+	endGame,
 };
